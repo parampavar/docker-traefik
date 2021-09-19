@@ -1,0 +1,89 @@
+version: "3.7"
+# MAIN DOCKER-COMPOSE
+# DEDICATED SERVER IN A DATACENTER
+# AMD Ryzen 7 3800X
+# 32 GB RAM
+# 480 GB SSD for Proxmox
+# 3 TB HDD for Proxmox Dumps, Rclone Cache, MerferFS Local and Downloads
+
+########################### NETWORKS
+# There is no need to create any networks outside this docker-compose file.
+# You may customize the network subnets (192.168.90.0/24 and 91.0/24) below as you please.
+# Docker Compose version 3.5 or higher required to define networks this way.
+
+# sudo docker network create t2_proxy
+
+networks:
+  t2_proxy:
+    external:
+      name: t2_proxy
+#    default:
+#      driver: bridge
+  socket_proxy:
+    external:
+      name: socket_proxy
+
+
+########################### SECRETS
+secrets:
+  htpasswd:
+    file: $DOCKERDIR/secrets/htpasswd
+  cloudflare_email:
+    file: $DOCKERDIR/secrets/cloudflare_email
+  cloudflare_api_key:
+    file: $DOCKERDIR/secrets/cloudflare_api_key
+
+    
+########################### SERVICES
+services:
+
+      
+  # Docker Socket Proxy - Security Enchanced Proxy for Docker Socket
+  # $ sudo docker network create socket_proxy
+
+services:
+  # Authorize and filter requests to restrict possible actions with the TecnativaDocker Socket Proxy 
+  socket-proxy:
+    restart: unless-stopped
+    image: tecnativa/docker-socket-proxy # https://github.com/Tecnativa/docker-socket-proxy
+    # --privileged flag is required here because it connects with the docker socket, which is a privileged connection in some SELinux/AppArmor contexts and would get locked otherwise):
+    # privileged: true
+    environment:
+      - LOG_LEVEL=debug # debug,info,notice,warning,err,crit,alert,emerg
+      ## Variables match the URL prefix (i.e. AUTH blocks access to /auth/* parts of the API, etc.).
+      # 0 to revoke access.
+      # 1 to grant access.
+      ## Granted by Default
+      - EVENTS=1
+      - PING=1
+      - VERSION=1
+      ## Revoked by Default
+      # Security critical
+      - AUTH=0
+      - SECRETS=0
+      - POST=1 # Ouroboros
+      # Not always needed
+      - BUILD=0
+      - COMMIT=0
+      - CONFIGS=0
+      - CONTAINERS=1 # Traefik, portainer, etc.
+      - DISTRIBUTION=0
+      - EXEC=0
+      - IMAGES=1 # Portainer
+      - INFO=1 # Portainer
+      - NETWORKS=1 # Portainer
+      - NODES=0
+      - PLUGINS=0
+      - SERVICES=1 # Portainer
+      - SESSION=0
+      - SWARM=0
+      - SYSTEM=0
+      - TASKS=1 # Portaienr
+      - VOLUMES=1 # Portainer
+    expose:
+    - 2375
+    volumes:
+    # So that Traefik can listen to the Docker events
+    - /var/run/docker.sock:/var/run/docker.sock:z
+    networks:
+    - socket_proxy
